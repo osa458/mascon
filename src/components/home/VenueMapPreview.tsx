@@ -6,50 +6,74 @@ interface VenueMapPreviewProps {
   mapImageUrl?: string | null
   mapsUrl?: string | null
   eventSlug: string
+  latitude?: number | null
+  longitude?: number | null
 }
 
-export function VenueMapPreview({ 
-  venueName, 
-  mapImageUrl, 
+export function VenueMapPreview({
+  venueName,
+  mapImageUrl,
   mapsUrl,
-  eventSlug 
+  eventSlug,
+  latitude,
+  longitude
 }: VenueMapPreviewProps) {
   const externalUrl = mapsUrl || `https://maps.google.com/?q=${encodeURIComponent(venueName)}`
-  
+
+  // Generate OpenStreetMap static image URL if we have coordinates
+  const getStaticMapUrl = () => {
+    if (latitude && longitude) {
+      // Use OSM static map tiles - construct a simple static map URL
+      // Using open-source tile server
+      const zoom = 15
+      const lat = latitude
+      const lon = longitude
+      // Using a free static map service
+      return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lon}&zoom=${zoom}&size=600x200&markers=${lat},${lon},ol-marker-blue`
+    }
+    return null
+  }
+
+  const staticMapUrl = getStaticMapUrl()
+  const displayMapUrl = mapImageUrl || staticMapUrl
+
   return (
     <div className="bg-gray-100 border-t border-b border-gray-200">
       {/* Map Preview */}
       <div className="relative h-24 bg-gray-200 overflow-hidden">
-        {mapImageUrl ? (
-          <img 
-            src={mapImageUrl} 
+        {displayMapUrl ? (
+          <img
+            src={displayMapUrl}
             alt={`Map of ${venueName}`}
             className="w-full h-full object-cover"
-          />
-        ) : (
-          <div 
-            className="w-full h-full bg-cover bg-center"
-            style={{
-              backgroundImage: `url('https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/-87.6165,41.8508,14,0/400x200@2x?access_token=pk.placeholder')`,
-              backgroundColor: '#e5e7eb'
+            onError={(e) => {
+              // If image fails to load, show placeholder
+              e.currentTarget.style.display = 'none'
+              const placeholder = e.currentTarget.nextElementSibling as HTMLElement
+              if (placeholder) placeholder.style.display = 'flex'
             }}
-          >
-            {/* Fallback map background pattern */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-gray-400 text-sm">Map Preview</div>
+          />
+        ) : null}
+
+        {/* Placeholder/fallback - shown when no map or on error */}
+        <div
+          className={`absolute inset-0 flex-col items-center justify-center bg-gradient-to-b from-gray-100 to-gray-200 ${displayMapUrl ? 'hidden' : 'flex'}`}
+        >
+          <MapPin className="w-8 h-8 text-sky-500 mb-1" />
+          <div className="text-gray-500 text-sm font-medium">View Map</div>
+        </div>
+
+        {/* Map Pin overlay when image is shown */}
+        {displayMapUrl && (
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full">
+            <div className="relative">
+              <MapPin className="w-8 h-8 text-sky-500 fill-sky-500 drop-shadow-lg" />
+              <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-full" />
             </div>
           </div>
         )}
-        
-        {/* Map Pin */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full">
-          <div className="relative">
-            <MapPin className="w-8 h-8 text-sky-500 fill-sky-500" />
-            <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-full" />
-          </div>
-        </div>
       </div>
-      
+
       {/* Venue Link Row */}
       <a
         href={externalUrl}
@@ -65,3 +89,4 @@ export function VenueMapPreview({
     </div>
   )
 }
+

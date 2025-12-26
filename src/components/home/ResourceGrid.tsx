@@ -1,12 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { 
-  Trophy, 
-  Camera, 
-  MessageCircleQuestion, 
-  BarChart3, 
-  Baby, 
+import {
+  Trophy,
+  Camera,
+  MessageCircleQuestion,
+  BarChart3,
+  Baby,
   Moon,
   Building2,
   Bus,
@@ -65,15 +65,27 @@ export function ResourceGrid({ eventSlug, tiles = defaultTiles }: ResourceGridPr
       <h3 className="text-lg font-semibold text-gray-900 mb-4">
         Additional Resources
       </h3>
-      
+
       <div className="grid grid-cols-3 gap-3">
         {tiles.map((tile) => {
           const IconComponent = iconMap[tile.icon] || Calendar
-          
+
+          // Normalize the route - extract the relative path portion
+          // Handle cases like "/e/mascon-2025/leaderboard" -> "/leaderboard"
+          // or just "/leaderboard" -> "/leaderboard"
+          let relativePath = tile.route;
+
+          // If route contains /e/something/, extract the path after the event slug
+          const eventPathMatch = tile.route.match(/^\/e\/[^/]+(.*)$/);
+          if (eventPathMatch) {
+            relativePath = eventPathMatch[1] || '/';
+          }
+
+          const linkHref = `/e/${eventSlug}${relativePath}`;
           return (
             <Link
               key={tile.route}
-              href={`/e/${eventSlug}${tile.route}`}
+              href={linkHref}
               className={cn(
                 "relative flex flex-col items-center justify-center",
                 "p-4 rounded-xl border border-gray-200 bg-white",
@@ -85,7 +97,7 @@ export function ResourceGrid({ eventSlug, tiles = defaultTiles }: ResourceGridPr
               {tile.hasNew && (
                 <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full" />
               )}
-              
+
               <IconComponent className="w-6 h-6 text-gray-600 mb-2" />
               <span className="text-sm font-medium text-gray-700 text-center leading-tight">
                 {tile.label}

@@ -19,6 +19,7 @@ interface Session {
   likesCount: number
   commentsCount: number
   isInMyAgenda?: boolean
+  isCustom?: boolean
 }
 
 interface SessionCardProps {
@@ -30,9 +31,9 @@ interface SessionCardProps {
 function SessionCard({ session, eventSlug, onToggleAgenda }: SessionCardProps) {
   const startTime = new Date(session.startTime)
   const endTime = new Date(session.endTime)
-  
+
   return (
-    <Link 
+    <Link
       href={`/e/${eventSlug}/agenda/${session.id}`}
       className="block bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
     >
@@ -46,18 +47,18 @@ function SessionCard({ session, eventSlug, onToggleAgenda }: SessionCardProps) {
             {format(endTime, "h:mm a")}
           </div>
         </div>
-        
+
         {/* Content */}
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-gray-900 line-clamp-2">{session.title}</h3>
-          
+
           {session.room && (
             <div className="flex items-center gap-1 mt-1 text-sm text-gray-500">
               <MapPin className="w-3 h-3" />
               <span>{session.room.name}</span>
             </div>
           )}
-          
+
           {/* Speakers */}
           {session.speakers.length > 0 && (
             <div className="flex items-center gap-2 mt-2">
@@ -77,7 +78,7 @@ function SessionCard({ session, eventSlug, onToggleAgenda }: SessionCardProps) {
               ))}
             </div>
           )}
-          
+
           {/* Stats */}
           <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
             <span className="flex items-center gap-1">
@@ -91,7 +92,7 @@ function SessionCard({ session, eventSlug, onToggleAgenda }: SessionCardProps) {
             </span>
           </div>
         </div>
-        
+
         {/* Add to agenda button */}
         <button
           onClick={(e) => {
@@ -100,8 +101,8 @@ function SessionCard({ session, eventSlug, onToggleAgenda }: SessionCardProps) {
           }}
           className={cn(
             "flex-shrink-0 p-2 rounded-full transition-colors",
-            session.isInMyAgenda 
-              ? "bg-sky-100 text-sky-600" 
+            session.isInMyAgenda
+              ? "bg-sky-100 text-sky-600"
               : "bg-gray-100 text-gray-400 hover:bg-gray-200"
           )}
         >
@@ -114,25 +115,29 @@ function SessionCard({ session, eventSlug, onToggleAgenda }: SessionCardProps) {
 
 interface AgendaClientProps {
   eventSlug: string
+  eventId: string
   dates: string[]
   sessions: Record<string, Session[]>
   myAgendaSessionIds: string[]
 }
 
-export default function AgendaClient({ eventSlug, dates, sessions, myAgendaSessionIds }: AgendaClientProps) {
+export default function AgendaClient({ eventSlug, eventId, dates, sessions, myAgendaSessionIds }: AgendaClientProps) {
   const [activeTab, setActiveTab] = useState<"full" | "my">("full")
   const [activeDateIndex, setActiveDateIndex] = useState(0)
   const [myAgenda, setMyAgenda] = useState<Set<string>>(new Set(myAgendaSessionIds))
 
   const currentDate = dates[activeDateIndex]
   const currentSessions = sessions[currentDate] || []
-  
+
   const myAgendaSessions = Object.values(sessions)
     .flat()
     .filter(s => myAgenda.has(s.id))
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
 
-  const handleToggleAgenda = (sessionId: string) => {
+  const handleToggleAgenda = async (sessionId: string) => {
+    const isInAgenda = myAgenda.has(sessionId)
+
+    // Optimistic update
     setMyAgenda(prev => {
       const next = new Set(prev)
       if (next.has(sessionId)) {
@@ -142,7 +147,39 @@ export default function AgendaClient({ eventSlug, dates, sessions, myAgendaSessi
       }
       return next
     })
-    // TODO: API call to persist
+
+    try {
+      if (isInAgenda) {
+        // Check if this is a custom item - custom items are not in the sessions list
+        // or have isCustom flag. For custom items, use itemId; for regular sessions, use sessionId
+        const allSessions = Object.values(sessions).flat()
+        const sessionData = allSessions.find(s => s.id === sessionId)
+        const isCustomItem = sessionData?.isCustom ?? !allSessions.some(s => s.id === sessionId && !s.isCustom)
+
+        if (isCustomItem) {
+          await fetch(`/api/agenda?itemId=${sessionId}`, { method: 'DELETE' })
+        } else {
+          await fetch(`/api/agenda?sessionId=${sessionId}`, { method: 'DELETE' })
+        }
+      } else {
+        await fetch('/api/agenda', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, eventId }),
+        })
+      }
+    } catch (error) {
+      // Revert on error
+      setMyAgenda(prev => {
+        const next = new Set(prev)
+        if (isInAgenda) {
+          next.add(sessionId)
+        } else {
+          next.delete(sessionId)
+        }
+        return next
+      })
+    }
   }
 
   // Group sessions by time slot
@@ -159,13 +196,13 @@ export default function AgendaClient({ eventSlug, dates, sessions, myAgendaSessi
       <div className="sticky top-14 z-30 bg-white border-b">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "full" | "my")}>
           <TabsList className="w-full justify-start rounded-none border-b h-auto p-0 bg-transparent">
-            <TabsTrigger 
+            <TabsTrigger
               value="full"
               className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-sky-500 data-[state=active]:bg-transparent"
             >
               Full Agenda
             </TabsTrigger>
-            <TabsTrigger 
+            <TabsTrigger
               value="my"
               className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-sky-500 data-[state=active]:bg-transparent"
             >
@@ -173,7 +210,7 @@ export default function AgendaClient({ eventSlug, dates, sessions, myAgendaSessi
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        
+
         {/* Date Navigation */}
         {activeTab === "full" && dates.length > 0 && (
           <div className="flex items-center justify-between px-4 py-2 bg-gray-50">
@@ -197,7 +234,7 @@ export default function AgendaClient({ eventSlug, dates, sessions, myAgendaSessi
           </div>
         )}
       </div>
-      
+
       {/* Content */}
       <div className="flex-1 overflow-auto p-4 space-y-4">
         {activeTab === "full" ? (
@@ -241,7 +278,7 @@ export default function AgendaClient({ eventSlug, dates, sessions, myAgendaSessi
                 </Button>
               </div>
             )}
-            
+
             {/* Add Custom Activity */}
             <Button variant="outline" className="w-full" asChild>
               <Link href={`/e/${eventSlug}/agenda/new`}>

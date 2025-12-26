@@ -38,8 +38,8 @@ function AttendeeCard({ attendee, eventSlug, onBookmark }: AttendeeCardProps) {
           </AvatarFallback>
         </Avatar>
       </Link>
-      
-      <Link 
+
+      <Link
         href={`/e/${eventSlug}/attendees/${attendee.id}`}
         className="flex-1 min-w-0"
       >
@@ -57,14 +57,14 @@ function AttendeeCard({ attendee, eventSlug, onBookmark }: AttendeeCardProps) {
           </p>
         )}
       </Link>
-      
+
       <div className="flex items-center gap-1">
         <button
           onClick={() => onBookmark?.(attendee.id)}
           className={cn(
             "p-2 rounded-full transition-colors",
-            attendee.isBookmarked 
-              ? "text-sky-500 bg-sky-50" 
+            attendee.isBookmarked
+              ? "text-sky-500 bg-sky-50"
               : "text-gray-400 hover:bg-gray-100"
           )}
         >
@@ -82,17 +82,18 @@ interface AttendeesClientProps {
   categories: string[]
 }
 
-export default function AttendeesClient({ 
-  eventSlug, 
-  attendees, 
+export default function AttendeesClient({
+  eventSlug,
+  attendees,
   bookmarkedIds: initialBookmarked,
-  categories 
+  categories
 }: AttendeesClientProps) {
   const [search, setSearch] = useState("")
   const [activeTab, setActiveTab] = useState<string>("all")
   const [bookmarked, setBookmarked] = useState<Set<string>>(new Set(initialBookmarked))
 
-  const handleBookmark = (id: string) => {
+  const handleBookmark = async (id: string) => {
+    // Optimistic update
     setBookmarked(prev => {
       const next = new Set(prev)
       if (next.has(id)) {
@@ -102,7 +103,25 @@ export default function AttendeesClient({
       }
       return next
     })
-    // TODO: API call to persist
+
+    try {
+      await fetch('/api/bookmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetId: id, targetType: 'user' }),
+      })
+    } catch (error) {
+      // Revert on error
+      setBookmarked(prev => {
+        const next = new Set(prev)
+        if (prev.has(id)) {
+          next.delete(id)
+        } else {
+          next.add(id)
+        }
+        return next
+      })
+    }
   }
 
   let filteredAttendees = attendees.map(a => ({
@@ -113,7 +132,7 @@ export default function AttendeesClient({
   // Search filter
   if (search) {
     const searchLower = search.toLowerCase()
-    filteredAttendees = filteredAttendees.filter(a => 
+    filteredAttendees = filteredAttendees.filter(a =>
       a.name.toLowerCase().includes(searchLower) ||
       a.title?.toLowerCase().includes(searchLower) ||
       a.company?.toLowerCase().includes(searchLower)
@@ -148,7 +167,7 @@ export default function AttendeesClient({
           />
         </div>
       </div>
-      
+
       {/* Tabs */}
       <div className="sticky top-[7.5rem] z-30 bg-white border-b overflow-x-auto scrollbar-hide">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -165,12 +184,12 @@ export default function AttendeesClient({
           </TabsList>
         </Tabs>
       </div>
-      
+
       {/* Attendee Count */}
       <div className="px-4 py-2 text-sm text-gray-500 bg-gray-50">
         {filteredAttendees.length} attendee{filteredAttendees.length !== 1 ? "s" : ""}
       </div>
-      
+
       {/* List */}
       <div className="flex-1 overflow-auto p-4 space-y-2">
         {filteredAttendees.length > 0 ? (

@@ -31,7 +31,7 @@ async function getEventData(slug: string) {
 export default async function EventHomePage({ params }: EventHomePageProps) {
   const { eventSlug } = await params
   const event = await getEventData(eventSlug)
-  
+
   if (!event) {
     notFound()
   }
@@ -52,24 +52,24 @@ export default async function EventHomePage({ params }: EventHomePageProps) {
     { label: "Logistics", icon: "map-pinned", route: "/logistics", hasNew: true },
   ]
 
-  const tiles = event.resourceTiles.length > 0 
+  const tiles = event.resourceTiles.length > 0
     ? event.resourceTiles.map((t: { label: string; icon: string | null; route: string; hasNew: boolean }) => ({
-        label: t.label,
-        icon: t.icon || "calendar",
-        route: t.route,
-        hasNew: t.hasNew,
-      }))
+      label: t.label,
+      icon: t.icon || "calendar",
+      route: t.route,
+      hasNew: t.hasNew,
+    }))
     : defaultTiles
 
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hidden header - avatar accessible via tap on banner area */}
-      <Header 
+      <Header
         eventSlug={eventSlug}
         eventName={event.name}
         eventLogoUrl={event.logoUrl}
       />
-      
+
       {/* Hero Banner */}
       <EventBanner
         bannerUrl={event.bannerUrl}
@@ -80,7 +80,7 @@ export default async function EventHomePage({ params }: EventHomePageProps) {
         endDate={event.endDate}
         venueName={event.venue?.name}
       />
-      
+
       {/* Event Summary */}
       <EventSummary
         name={event.name}
@@ -89,7 +89,7 @@ export default async function EventHomePage({ params }: EventHomePageProps) {
         startDate={event.startDate}
         endDate={event.endDate}
       />
-      
+
       {/* Venue Map Preview */}
       {event.venue && (
         <VenueMapPreview
@@ -97,21 +97,23 @@ export default async function EventHomePage({ params }: EventHomePageProps) {
           mapImageUrl={event.venue.mapImageUrl}
           mapsUrl={event.venue.mapsUrl}
           eventSlug={eventSlug}
+          latitude={event.venue.latitude}
+          longitude={event.venue.longitude}
         />
       )}
-      
+
       {/* Resource Tiles Grid */}
       <ResourceGrid eventSlug={eventSlug} tiles={tiles} />
-      
+
       {/* Sponsor Strip */}
-      <SponsorStrip 
+      <SponsorStrip
         sponsors={event.sponsors.map((s: { id: string; name: string; tier: string; logoUrl: string | null; website: string | null }) => ({
           id: s.id,
           name: s.name,
           tier: s.tier,
           logoUrl: s.logoUrl,
           website: s.website,
-        }))} 
+        }))}
         eventSlug={eventSlug}
       />
     </div>

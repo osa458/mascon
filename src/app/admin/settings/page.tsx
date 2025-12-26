@@ -3,7 +3,11 @@ import { Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 async function getEvent() {
-  const event = await prisma.event.findFirst()
+  const event = await prisma.event.findFirst({
+    include: {
+      venue: true,
+    },
+  })
   return event
 }
 
@@ -26,7 +30,7 @@ export default async function SettingsAdmin() {
             Edit
           </Button>
         </div>
-        
+
         {event ? (
           <div className="grid grid-cols-2 gap-6">
             <div>
@@ -47,11 +51,13 @@ export default async function SettingsAdmin() {
             </div>
             <div>
               <label className="text-sm text-gray-500">Location</label>
-              <p className="font-medium">{event.location || 'Not set'}</p>
+              <p className="font-medium">
+                {[event.city, event.state, event.country].filter(Boolean).join(", ") || 'Not set'}
+              </p>
             </div>
             <div>
               <label className="text-sm text-gray-500">Venue</label>
-              <p className="font-medium">{event.venue || 'Not set'}</p>
+              <p className="font-medium">{event.venue?.name || 'Not set'}</p>
             </div>
             <div className="col-span-2">
               <label className="text-sm text-gray-500">Description</label>
@@ -60,9 +66,9 @@ export default async function SettingsAdmin() {
             <div>
               <label className="text-sm text-gray-500">Banner Image</label>
               {event.bannerUrl ? (
-                <img 
-                  src={event.bannerUrl} 
-                  alt="Event banner" 
+                <img
+                  src={event.bannerUrl}
+                  alt="Event banner"
                   className="mt-2 rounded-lg max-h-32 object-cover"
                 />
               ) : (
@@ -78,7 +84,7 @@ export default async function SettingsAdmin() {
       {/* App Configuration */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
         <h2 className="text-lg font-semibold mb-4">App Configuration</h2>
-        
+
         <div className="space-y-4">
           <div className="flex items-center justify-between py-3 border-b">
             <div>
@@ -90,7 +96,7 @@ export default async function SettingsAdmin() {
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
             </label>
           </div>
-          
+
           <div className="flex items-center justify-between py-3 border-b">
             <div>
               <p className="font-medium">Enable Polls</p>
@@ -101,7 +107,7 @@ export default async function SettingsAdmin() {
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
             </label>
           </div>
-          
+
           <div className="flex items-center justify-between py-3 border-b">
             <div>
               <p className="font-medium">Enable Session Q&A</p>
@@ -112,7 +118,7 @@ export default async function SettingsAdmin() {
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
             </label>
           </div>
-          
+
           <div className="flex items-center justify-between py-3">
             <div>
               <p className="font-medium">Enable Announcements</p>
@@ -129,7 +135,7 @@ export default async function SettingsAdmin() {
       {/* Danger Zone */}
       <div className="bg-white rounded-xl border border-red-200 p-6">
         <h2 className="text-lg font-semibold text-red-600 mb-4">Danger Zone</h2>
-        
+
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>

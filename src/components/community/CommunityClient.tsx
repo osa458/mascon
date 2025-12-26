@@ -49,9 +49,11 @@ export default function CommunityClient({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [following, setFollowing] = useState<Set<string>>(new Set(initialFollowed))
 
-  const handleFollow = (threadId: string, e: React.MouseEvent) => {
+  const handleFollow = async (threadId: string, e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+
+    // Optimistic update
     setFollowing(prev => {
       const next = new Set(prev)
       if (next.has(threadId)) {
@@ -61,7 +63,25 @@ export default function CommunityClient({
       }
       return next
     })
-    // TODO: API call
+
+    try {
+      await fetch('/api/community/follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threadId }),
+      })
+    } catch (error) {
+      // Revert on error
+      setFollowing(prev => {
+        const next = new Set(prev)
+        if (prev.has(threadId)) {
+          next.delete(threadId)
+        } else {
+          next.add(threadId)
+        }
+        return next
+      })
+    }
   }
 
   const filteredThreads = selectedCategory
@@ -144,7 +164,7 @@ export default function CommunityClient({
                             <span className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0" />
                           )}
                         </div>
-                        
+
                         <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
                           <span className="flex items-center gap-1">
                             <MessageSquare className="w-3 h-3" />
@@ -157,7 +177,7 @@ export default function CommunityClient({
                           )}
                         </div>
                       </div>
-                      
+
                       <button
                         onClick={(e) => handleFollow(thread.id, e)}
                         className={cn(
