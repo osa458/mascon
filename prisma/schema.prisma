@@ -1,0 +1,691 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============ AUTH MODELS ============
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============ USER MODEL ============
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  emailVerified   DateTime?
+  name            String?
+  image           String?
+  bio             String?   @db.Text
+  title           String?
+  company         String?
+  phone           String?
+  linkedin        String?
+  twitter         String?
+  website         String?
+  shareEmail      Boolean   @default(false)
+  sharePhone      Boolean   @default(false)
+  qrToken         String?   @unique @default(cuid())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  accounts        Account[]
+  sessions        Session[]
+  eventRoles      EventRole[]
+  myAgenda        MyAgendaItem[]
+  bookmarks       Bookmark[]
+  follows         Follow[]        @relation("follower")
+  followers       Follow[]        @relation("following")
+  sentMessages    Message[]       @relation("sender")
+  receivedThreads MessageThread[] @relation("participant")
+  createdThreads  MessageThread[] @relation("creator")
+  topicPosts      TopicPost[]
+  postComments    PostComment[]
+  meetupRSVPs     MeetupRSVP[]
+  meetingsSent    MeetingRequest[] @relation("requester")
+  meetingsReceived MeetingRequest[] @relation("requestee")
+  qaQuestions     QAQuestion[]
+  qaVotes         QAVote[]
+  pollVotes       PollVote[]
+  notes           Note[]
+  contactsGiven   ContactExchange[] @relation("giver")
+  contactsReceived ContactExchange[] @relation("receiver")
+  notifications   Notification[]
+  speakerProfile  Speaker?
+  exhibitorStaff  ExhibitorStaff[]
+  gamificationPoints GamificationPoint[]
+  photoUploads    Photo[]
+}
+
+enum Role {
+  ATTENDEE
+  EXHIBITOR
+  SPEAKER
+  ORGANIZER
+  ADMIN
+}
+
+model EventRole {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  role      Role     @default(ATTENDEE)
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+}
+
+// ============ EVENT MODELS ============
+
+model Event {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  name            String
+  tagline         String?
+  description     String?   @db.Text
+  bannerUrl       String?
+  logoUrl         String?
+  city            String?
+  state           String?
+  country         String?
+  timezone        String    @default("America/Chicago")
+  startDate       DateTime
+  endDate         DateTime
+  isPublished     Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  venue           Venue?
+  eventRoles      EventRole[]
+  sessions        EventSession[]
+  speakers        Speaker[]
+  exhibitors      Exhibitor[]
+  sponsors        Sponsor[]
+  documents       Document[]
+  announcements   Announcement[]
+  topicCategories TopicCategory[]
+  polls           Poll[]
+  logisticsItems  LogisticsItem[]
+  shuttleRoutes   ShuttleRoute[]
+  kidsActivities  KidsActivity[]
+  prayerTimes     PrayerTime[]
+  photos          Photo[]
+  resourceTiles   ResourceTile[]
+}
+
+model Venue {
+  id          String  @id @default(cuid())
+  eventId     String  @unique
+  name        String
+  address     String?
+  city        String?
+  state       String?
+  zipCode     String?
+  country     String?
+  latitude    Float?
+  longitude   Float?
+  mapImageUrl String?
+  mapsUrl     String?
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  rooms Room[]
+}
+
+model Room {
+  id       String @id @default(cuid())
+  venueId  String
+  name     String
+  floor    String?
+  capacity Int?
+
+  venue    Venue     @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  sessions EventSession[]
+}
+
+// ============ SESSION/AGENDA MODELS ============
+
+model EventSession {
+  id            String    @id @default(cuid())
+  eventId       String
+  roomId        String?
+  title         String
+  description   String?   @db.Text
+  startTime     DateTime
+  endTime       DateTime
+  sessionType   String?   // keynote, workshop, panel, etc.
+  track         String?
+  capacity      Int?
+  likesCount    Int       @default(0)
+  commentsCount Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  event        Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  room         Room?          @relation(fields: [roomId], references: [id])
+  speakers     SessionSpeaker[]
+  myAgendaItems MyAgendaItem[]
+  qaQuestions  QAQuestion[]
+  notes        Note[]
+}
+
+model SessionSpeaker {
+  id        String @id @default(cuid())
+  sessionId String
+  speakerId String
+  order     Int    @default(0)
+
+  session EventSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  speaker Speaker @relation(fields: [speakerId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, speakerId])
+}
+
+model Speaker {
+  id        String  @id @default(cuid())
+  eventId   String
+  userId    String? @unique
+  name      String
+  title     String?
+  company   String?
+  bio       String? @db.Text
+  imageUrl  String?
+  
+  event    Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user     User?            @relation(fields: [userId], references: [id])
+  sessions SessionSpeaker[]
+}
+
+model MyAgendaItem {
+  id        String   @id @default(cuid())
+  userId    String
+  sessionId String?
+  eventId   String
+  customTitle String?
+  customStartTime DateTime?
+  customEndTime   DateTime?
+  customLocation  String?
+  isCustom  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session EventSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sessionId])
+}
+
+// ============ EXHIBITOR/SPONSOR MODELS ============
+
+model Exhibitor {
+  id          String  @id @default(cuid())
+  eventId     String
+  name        String
+  description String? @db.Text
+  logoUrl     String?
+  boothNumber String?
+  website     String?
+  category    String?
+
+  event Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  staff ExhibitorStaff[]
+}
+
+model ExhibitorStaff {
+  id          String @id @default(cuid())
+  exhibitorId String
+  userId      String
+
+  exhibitor Exhibitor @relation(fields: [exhibitorId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([exhibitorId, userId])
+}
+
+model Sponsor {
+  id          String  @id @default(cuid())
+  eventId     String
+  name        String
+  tier        String  // platinum, gold, silver, bronze
+  logoUrl     String?
+  website     String?
+  description String? @db.Text
+  order       Int     @default(0)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+// ============ COMMUNITY MODELS ============
+
+model TopicCategory {
+  id          String  @id @default(cuid())
+  eventId     String
+  name        String
+  description String?
+  icon        String?
+  order       Int     @default(0)
+
+  event  Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  topics TopicThread[]
+}
+
+model TopicThread {
+  id          String   @id @default(cuid())
+  categoryId  String
+  title       String
+  isPinned    Boolean  @default(false)
+  isLocked    Boolean  @default(false)
+  postsCount  Int      @default(0)
+  lastPostAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  category TopicCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  posts    TopicPost[]
+  follows  Follow[]
+}
+
+model TopicPost {
+  id        String   @id @default(cuid())
+  threadId  String
+  userId    String
+  content   String   @db.Text
+  imageUrl  String?
+  likesCount Int     @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  thread   TopicThread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments PostComment[]
+}
+
+model PostComment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  post TopicPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Meetup {
+  id          String   @id @default(cuid())
+  threadId    String?
+  eventId     String
+  title       String
+  description String?  @db.Text
+  location    String?
+  startTime   DateTime
+  endTime     DateTime?
+  maxAttendees Int?
+  createdAt   DateTime @default(now())
+
+  rsvps MeetupRSVP[]
+}
+
+model MeetupRSVP {
+  id       String @id @default(cuid())
+  meetupId String
+  userId   String
+  status   String @default("going") // going, maybe, not_going
+
+  meetup Meetup @relation(fields: [meetupId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([meetupId, userId])
+}
+
+// ============ MESSAGING MODELS ============
+
+model MessageThread {
+  id            String   @id @default(cuid())
+  creatorId     String
+  participantId String
+  eventId       String?
+  isSystemThread Boolean @default(false)
+  systemType    String?  // welcome, announcement, etc.
+  lastMessageAt DateTime?
+  createdAt     DateTime @default(now())
+
+  creator     User      @relation("creator", fields: [creatorId], references: [id], onDelete: Cascade)
+  participant User      @relation("participant", fields: [participantId], references: [id], onDelete: Cascade)
+  messages    Message[]
+
+  @@unique([creatorId, participantId, eventId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  threadId  String
+  senderId  String
+  content   String   @db.Text
+  imageUrl  String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender User          @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+// ============ MEETING REQUEST MODELS ============
+
+model MeetingRequest {
+  id          String   @id @default(cuid())
+  requesterId String
+  requesteeId String
+  eventId     String
+  message     String?  @db.Text
+  duration    Int      @default(15) // minutes
+  location    String?
+  status      String   @default("pending") // pending, accepted, declined, cancelled
+  proposedTimes Json?  // array of time slots
+  confirmedTime DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  requester User @relation("requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  requestee User @relation("requestee", fields: [requesteeId], references: [id], onDelete: Cascade)
+}
+
+// ============ Q&A MODELS ============
+
+model QAQuestion {
+  id          String   @id @default(cuid())
+  sessionId   String
+  userId      String
+  content     String   @db.Text
+  isAnonymous Boolean  @default(false)
+  isAnswered  Boolean  @default(false)
+  votesCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  session EventSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  votes   QAVote[]
+}
+
+model QAVote {
+  id         String @id @default(cuid())
+  questionId String
+  userId     String
+
+  question QAQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, userId])
+}
+
+// ============ POLL MODELS ============
+
+model Poll {
+  id          String   @id @default(cuid())
+  eventId     String
+  question    String
+  isActive    Boolean  @default(true)
+  allowMultiple Boolean @default(false)
+  endsAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  event   Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  options PollOption[]
+}
+
+model PollOption {
+  id       String @id @default(cuid())
+  pollId   String
+  text     String
+  votesCount Int  @default(0)
+
+  poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes PollVote[]
+}
+
+model PollVote {
+  id       String @id @default(cuid())
+  optionId String
+  userId   String
+
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([optionId, userId])
+}
+
+// ============ NOTES MODEL ============
+
+model Note {
+  id        String   @id @default(cuid())
+  userId    String
+  sessionId String?
+  eventId   String?
+  title     String?
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session EventSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+// ============ CONTACT EXCHANGE MODEL ============
+
+model ContactExchange {
+  id         String   @id @default(cuid())
+  giverId    String
+  receiverId String
+  eventId    String
+  note       String?
+  createdAt  DateTime @default(now())
+
+  giver    User @relation("giver", fields: [giverId], references: [id], onDelete: Cascade)
+  receiver User @relation("receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([giverId, receiverId, eventId])
+}
+
+// ============ SOCIAL MODELS ============
+
+model Bookmark {
+  id         String   @id @default(cuid())
+  userId     String
+  targetType String   // user, session, exhibitor
+  targetId   String
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+}
+
+model Follow {
+  id           String  @id @default(cuid())
+  followerId   String
+  followingId  String?
+  threadId     String?
+  
+  follower  User         @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User?        @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+  thread    TopicThread? @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@unique([followerId, threadId])
+}
+
+// ============ DOCUMENT MODEL ============
+
+model Document {
+  id          String   @id @default(cuid())
+  eventId     String
+  title       String
+  description String?
+  fileUrl     String
+  fileType    String?
+  fileSize    Int?
+  category    String?
+  createdAt   DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+// ============ ANNOUNCEMENT MODEL ============
+
+model Announcement {
+  id        String   @id @default(cuid())
+  eventId   String
+  title     String
+  content   String   @db.Text
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+// ============ NOTIFICATION MODEL ============
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  content   String?
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ GAMIFICATION MODEL ============
+
+model GamificationPoint {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  action    String
+  points    Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ ADDITIONAL MODULE MODELS ============
+
+model LogisticsItem {
+  id          String  @id @default(cuid())
+  eventId     String
+  title       String
+  content     String? @db.Text
+  icon        String?
+  category    String?
+  order       Int     @default(0)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model ShuttleRoute {
+  id          String  @id @default(cuid())
+  eventId     String
+  name        String
+  description String?
+  schedule    Json?   // array of times
+  stops       Json?   // array of stop names
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model KidsActivity {
+  id          String   @id @default(cuid())
+  eventId     String
+  title       String
+  description String?  @db.Text
+  location    String?
+  ageRange    String?
+  startTime   DateTime?
+  endTime     DateTime?
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model PrayerTime {
+  id        String   @id @default(cuid())
+  eventId   String
+  name      String   // Fajr, Dhuhr, Asr, Maghrib, Isha
+  time      String
+  location  String?
+  date      DateTime
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model Photo {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  imageUrl  String
+  caption   String?
+  category  String?
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ResourceTile {
+  id        String  @id @default(cuid())
+  eventId   String
+  label     String
+  icon      String?
+  route     String
+  order     Int     @default(0)
+  hasNew    Boolean @default(false)
+  isVisible Boolean @default(true)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+// ============ RECOMMENDATION SERVICE INTERFACE ============
+// This is a placeholder for future AI-based matchmaking
+// The interface will be:
+// RecommendationService.getRecommendations(userId, eventId, type) -> RecommendationCandidate[]
+// where RecommendationCandidate = { targetId, targetType, reasonCodes[], score? }
